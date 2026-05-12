@@ -149,8 +149,9 @@ public class PersonPageTests
 
         var fieldErrorMessage = wait.Until(ExpectedConditions.ElementExists(By.XPath("(.//*[normalize-space(text()) and normalize-space(.)='*'])[2]/following::div[2]")));
         Assert.That(fieldErrorMessage.Text, Does.Contain("The specified percentag should be between -10 and infinity."));
-        
+
     }
+
     private bool IsElementPresent(By by)
     {
         try
