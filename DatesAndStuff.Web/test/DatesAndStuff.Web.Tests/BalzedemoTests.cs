@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
@@ -11,11 +11,11 @@ using SeleniumExtras.WaitHelpers;
 namespace DatesAndStuff.Web.Tests;
 
 [TestFixture]
-public class PersonPageTests
+public class BlazedemoTests
 {
     private IWebDriver driver;
     private StringBuilder verificationErrors;
-    private const string BaseURL = "http://localhost:5091";
+    private const string BaseURL = "https://blazedemo.com/";
     private bool acceptNextAlert = true;
 
     private Process? _blazorProcess;
@@ -98,58 +98,41 @@ public class PersonPageTests
     }
 
     [Test]
-    [TestCase(1)]
-    [TestCase(5)]
-    [TestCase(10)]
-    public void Person_SalaryIncrease_ShouldIncrease(double increasePercentage)
+    public void Blazedemo_SearchingFlightsBetweenMexicoCityAndDublin_ShouldreturnAtLeastThree()
     {
         // Arrange
-        driver.Navigate().GoToUrl(BaseURL);
-        driver.FindElement(By.XPath("//*[@data-test='PersonPageNavigation']")).Click();
-
+        double minPrice = 400.0; 
         var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(5));
-
-        Thread.Sleep(300);
-
-        driver.FindElement(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']")).Clear();
-        driver.FindElement(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']")).SendKeys(increasePercentage.ToString());
-
-        // Act
-        var submitButton = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreaseSubmitButton']")));
-        submitButton.Click();
-
-
-        // Assert
-        var salaryLabel = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='DisplayedSalary']")));
-        var salaryAfterSubmission = double.Parse(salaryLabel.Text);
-        double expectedSalary = 5000 * (1 + increasePercentage/100);
-        salaryAfterSubmission.Should().BeApproximately(expectedSalary, 0.001);
-    }
-
-    [Test]
-    public void Person_SalaryDecreaseWithMoreThanTenPercentage_ShouldPrintErrorMessages()
-    {
-        // Arrange
         driver.Navigate().GoToUrl(BaseURL);
-        driver.FindElement(By.LinkText("Person")).Click();
+        driver.FindElement(By.Name("fromPort")).Click();
+        new SelectElement(driver.FindElement(By.Name("fromPort"))).SelectByText("Mexico City");
+        driver.FindElement(By.Name("toPort")).Click();
+        new SelectElement(driver.FindElement(By.Name("toPort"))).SelectByText("Dublin");
+        driver.FindElement(By.XPath("//input[@value='Find Flights']")).Click();
+        var flightsTable = wait.Until(ExpectedConditions.ElementExists(By.CssSelector("table.table")));
+        var flightRows = flightsTable.FindElements(By.CssSelector("tbody tr"));
 
-        var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(5));
+        flightRows.Count.Should().BeGreaterThanOrEqualTo(3, "There should be at least 3 flights available between Mexico City and Dublin");
+        int i = 0;
+        foreach (var row in flightRows)
+        {
+            // A BlazeDemo táblázatában az ár a 6. oszlop (td[6])
+            var priceText = row.FindElement(By.XPath("./td[6]")).Text;
 
-        var salaryInput = wait.Until(ExpectedConditions.ElementExists(By.Name("formModel.SalaryIncreasePercentage")));
-        salaryInput.Clear();
-        salaryInput.SendKeys("-15");
+            // Szöveg átalakítása számmal összehasonlítható formátumra ($472.56 -> 472.56)
+            if (double.TryParse(priceText.Replace("$", ""), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double actualPrice))
+            {
+                if (actualPrice < minPrice)
+                {
+                    i++;
+                    ITakesScreenshot elementScreenshot = row as ITakesScreenshot;
+                    Screenshot shot = elementScreenshot.GetScreenshot();
 
-        // Act
-        var submitButton = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreaseSubmitButton']")));
-        submitButton.Click();
-
-        // Assert
-        var topErrorMessage = wait.Until(ExpectedConditions.ElementExists(By.XPath("(.//*[normalize-space(text()) and normalize-space(.)='About'])[1]/following::li[1]")));
-        Assert.That(topErrorMessage.Text, Does.Contain("The specified percentag should be between -10 and infinity."));
-
-        var fieldErrorMessage = wait.Until(ExpectedConditions.ElementExists(By.XPath("(.//*[normalize-space(text()) and normalize-space(.)='*'])[2]/following::div[2]")));
-        Assert.That(fieldErrorMessage.Text, Does.Contain("The specified percentag should be between -10 and infinity."));
-
+                    string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                    shot.SaveAsFile(Path.Combine(desktopPath, $"CheapFlight_RowOnly{i}.png"));
+                }
+            }
+        }
     }
 
     private bool IsElementPresent(By by)
